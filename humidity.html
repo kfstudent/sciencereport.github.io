@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>湿度計算(乾湿球湿度表)</title>
+<style>
+:root{--bg:#f4f7fa;--card:#fff;--tx:#17212b;--sub:#5d6b79;--ac:#0b78c4;--bd:#d5dde5;--hl:#ffe08a;--hl2:#ffb703;--hlt:#17212b;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f161d;--card:#18222c;--tx:#e8eef4;--sub:#93a3b3;--ac:#5cb8f5;--bd:#2c3945;--hl:#5a4a10;--hl2:#c98f00;--hlt:#fff}}
+:root[data-theme="dark"]{--bg:#0f161d;--card:#18222c;--tx:#e8eef4;--sub:#93a3b3;--ac:#5cb8f5;--bd:#2c3945;--hl:#5a4a10;--hl2:#c98f00;--hlt:#fff}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:-apple-system,"Hiragino Sans","Yu Gothic",Meiryo,sans-serif;line-height:1.5}
+main{max-width:760px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.4rem;margin:0 0 4px}
+p.s{color:var(--sub);margin:0 0 16px;font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:16px;margin-bottom:16px}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;font-size:.85rem;color:var(--sub);margin-bottom:4px}
+input{width:100%;box-sizing:border-box;font-size:1.4rem;padding:10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx)}
+input:focus{outline:2px solid var(--ac)}
+.res{text-align:center;padding:8px 0}
+.big{font-size:3.6rem;font-weight:700;color:var(--ac);line-height:1.1}
+.big small{font-size:1.6rem}
+.note{color:var(--sub);font-size:.85rem;margin-top:6px}
+.err{color:#d64545;font-weight:600}
+.tw{overflow-x:auto;border:1px solid var(--bd);border-radius:10px;max-height:420px;overflow-y:auto}
+table{border-collapse:collapse;font-size:.8rem;min-width:100%;text-align:right}
+th,td{padding:3px 7px;border-bottom:1px solid var(--bd)}
+th{position:sticky;top:0;background:var(--card);color:var(--sub);z-index:1}
+td:first-child,th:first-child{position:sticky;left:0;background:var(--card);font-weight:600;text-align:center;z-index:1}
+td.h{background:var(--hl);color:var(--hlt);font-weight:700}
+</style>
+</head>
+<body>
+<main>
+<h1>湿度計算</h1>
+<p class="s">乾湿球湿度表をもとに、乾球と湿球の示度から相対湿度[%]を求めます。</p>
+<div class="card">
+<div class="row">
+<div><label for="dry">乾球の示度 [℃]</label><input id="dry" type="number" step="0.1" value="20" inputmode="decimal"></div>
+<div><label for="wet">湿球の示度 [℃]</label><input id="wet" type="number" step="0.1" value="16" inputmode="decimal"></div>
+</div>
+</div>
+<div class="card res" aria-live="polite">
+<div id="out"></div>
+<div class="note" id="note"></div>
+</div>
+<div class="card">
+<label>湿度表(計算に使った値を黄色で表示)</label>
+<div class="tw"><table id="tb"></table></div>
+</div>
+</main>
+<script>
+const RAW=`35:100 97 93 90 87 83 80 77 74 71 68 65 63 60 57 54 52 49 47 44 42
+34:100 96 93 90 86 83 80 77 74 71 68 65 62 59 56 54 51 48 46 43 41
+33:100 96 93 89 86 83 80 76 73 70 67 64 61 58 56 53 50 47 45 42 40
+32:100 96 93 89 86 82 79 76 73 70 66 63 60 58 55 52 49 46 44 41 39
+31:100 96 93 89 86 82 79 75 72 69 66 63 60 57 54 51 48 45 43 40 37
+30:100 96 92 89 85 82 78 75 72 68 65 62 59 56 53 50 47 44 41 39 36
+29:100 96 92 89 85 81 78 74 71 68 64 61 58 55 52 49 46 43 40 37 35
+28:100 96 92 88 85 81 77 74 70 67 64 60 57 54 51 48 45 42 39 36 33
+27:100 96 92 88 84 81 77 73 70 66 63 59 56 53 50 47 43 40 37 34 32
+26:100 96 92 88 84 80 76 73 69 65 62 58 55 52 48 45 42 39 36 33 30
+25:100 96 92 88 84 80 76 72 68 65 61 57 54 51 47 44 41 37 34 31 28
+24:100 96 91 87 83 79 75 71 67 64 60 56 53 49 46 43 39 36 33 29 26
+23:100 96 91 87 83 79 75 71 67 63 59 55 52 48 45 41 38 34 31 28 24
+22:100 95 91 87 82 78 74 70 66 62 58 54 50 47 43 39 36 32 29 26 22
+21:100 95 91 86 82 77 73 69 65 61 57 53 49 45 41 38 34 31 27 24 20
+20:100 95 90 86 81 77 72 68 64 60 56 52 48 44 40 36 32 29 25 21 18
+19:100 95 90 85 81 76 72 67 63 59 54 50 46 42 38 34 30 26 23 19 15
+18:100 95 90 85 80 75 71 66 62 57 53 49 44 40 36 32 28 24 20 16 13
+17:100 95 90 85 80 75 70 65 61 56 51 47 43 38 34 30 26 22 18 14 10
+16:100 95 89 84 79 74 69 64 59 55 50 45 41 36 32 28 23 19 15 11 7
+15:100 94 89 84 78 73 68 63 58 53 48 43 39 34 30 25 21 16 12 8 4
+14:100 94 89 83 78 72 67 62 56 51 46 42 37 32 27 22 18 13 9 5
+13:100 94 88 82 77 71 66 60 55 50 45 39 34 29 25 20 15 10 6 1
+12:100 94 88 82 76 70 64 59 53 48 42 37 32 27 22 17 12 7 2
+11:100 94 87 81 75 69 63 57 52 46 40 35 29 24 19 13 8 3
+10:100 93 87 80 74 68 62 56 50 44 38 32 27 21 15 10 5
+9:100 93 86 80 73 67 60 54 48 42 36 30 24 18 12 6 1
+8:100 93 86 79 72 65 59 52 46 39 33 27 20 14 8 2
+7:100 93 85 78 71 64 57 50 43 37 30 23 17 11 4
+6:100 92 85 77 70 62 55 48 41 34 27 20 13 7
+5:100 92 84 76 68 61 53 46 38 31 24 16 9 2
+4:100 92 83 75 67 59 51 43 35 28 20 12 5
+3:100 91 82 74 65 57 49 40 32 24 16 8
+2:100 91 82 73 64 55 46 37 29 20 12 4
+1:100 90 81 71 62 52 43 34 25 16 7
+0:100 90 80 70 60 50 40 31 21 12 3
+-1:100 89 79 68 58 47 37 27 17 7
+-2:100 89 77 66 55 45 34 23 13 2
+-3:100 88 76 65 53 42 30 19 8
+-4:100 88 75 63 50 38 26 14 2
+-5:100 87 74 60 47 35 22 9`;
+const T={};
+RAW.split("\n").forEach(l=>{const[k,v]=l.split(":");T[+k]=v.trim().split(/\s+/).map(Number)});
+const temps=Object.keys(T).map(Number).sort((a,b)=>b-a);
+const g=(t,i)=>(T[t]&&i<T[t].length)?T[t][i]:null;
+
+// build table
+const tb=document.getElementById("tb");
+let h="<tr><th>乾球＼差</th>";
+for(let i=0;i<21;i++)h+="<th>"+(i/2).toFixed(1)+"</th>";
+h+="</tr>";
+temps.forEach(t=>{h+="<tr><td>"+t+"</td>";for(let i=0;i<21;i++){const v=g(t,i);h+='<td id="c'+t+'_'+i+'">'+(v===null?"":v)+"</td>"}h+="</tr>"});
+tb.innerHTML=h;
+
+function calc(t,d){
+  const t0=Math.floor(t),t1=Math.ceil(t),x=d*2,i0=Math.floor(x+1e-9),i1=Math.ceil(x-1e-9);
+  const cells=[[t0,i0],[t0,i1],[t1,i0],[t1,i1]];
+  const v=cells.map(c=>g(c[0],c[1]));
+  if(v.some(a=>a===null))return null;
+  const ft=t1===t0?0:t-t0, fd=i1===i0?0:x-i0;
+  const lo=v[0]+(v[1]-v[0])*fd, hi=v[2]+(v[3]-v[2])*fd;
+  return{v:lo+(hi-lo)*ft,cells,exact:ft===0&&fd===0};
+}
+const dry=document.getElementById("dry"),wet=document.getElementById("wet"),out=document.getElementById("out"),note=document.getElementById("note");
+function run(){
+  document.querySelectorAll("td.h").forEach(e=>e.classList.remove("h"));
+  const t=parseFloat(dry.value),w=parseFloat(wet.value);
+  const msg=(m,n)=>{out.innerHTML='<div class="err">'+m+"</div>";note.textContent=n||""};
+  if(isNaN(t)||isNaN(w))return msg("乾球・湿球の示度を入力してください");
+  if(t<-5||t>35)return msg("表の範囲外です","乾球の示度は −5〜35℃ の範囲で入力してください。");
+  const d=Math.round((t-w)*10)/10;
+  if(d<0)return msg("湿球が乾球より高くなっています","通常、湿球の示度は乾球以下になります。");
+  if(d>10)return msg("表の範囲外です","乾球と湿球の差は 10.0℃ 以下で入力してください。");
+  const r=calc(t,d);
+  if(!r)return msg("表に値がありません","この組み合わせは表の範囲外です(湿度がほぼ0%以下)。");
+  r.cells.forEach(c=>{const e=document.getElementById("c"+c[0]+"_"+c[1]);if(e)e.classList.add("h")});
+  out.innerHTML='<div class="big">'+Math.round(r.v)+'<small> %</small></div>';
+  note.textContent="乾球と湿球の差:"+d.toFixed(1)+"℃"+(r.exact?"(表の値そのまま)":"(表の値から直線補間して算出)");
+  const el=document.getElementById("c"+r.cells[0][0]+"_"+r.cells[0][1]);
+  if(el){const w=el.closest(".tw");w.scrollTop=el.offsetTop-w.clientHeight/2;}
+}
+dry.addEventListener("input",run);wet.addEventListener("input",run);run();
+</script>
+</body>
+</html>
